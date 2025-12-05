@@ -21,40 +21,48 @@
 
 
 
+import os
 import re
 
-def parse_grades(grades_str):
-    """Парсит строку вида 'Математика (6, 6, 8)' → ('Математика', [6,6,8])"""
-    name, nums = grades_str.split("(")
+
+def parse_subject_block(block: str):
+    """
+    Преобразует строку вида:
+    'Математика (6, 6, 8)' → ('Математика', [6,6,8])
+    """
+    name, nums = block.split("(")
     name = name.strip()
-    nums = nums.replace(")", "")
+    nums = nums.replace(")", "").strip()
     nums = [int(x) for x in nums.split(",")]
     return name, nums
 
 
-def parse_line(line):
-    """Парсит одну строку файла"""
+def parse_line(line: str):
+    """
+    Парсит строку файла:
+    'ФИО, класс, Математика(...), Русский язык(...), ...'
+    """
     parts = line.split(",")
-    
+
     fio = parts[0].strip()
     class_name = parts[1].strip()
 
-    subjects_raw = ",".join(parts[2:])  # всё остальное — предметы
-    subjects_raw = subjects_raw.split("),")
+    # всё, что после класса — предметы
+    subjects_raw = ",".join(parts[2:])
+    subject_blocks = subjects_raw.split("),")
 
     subjects = {}
-    for subj in subjects_raw:
-        subj = subj.strip()
-        if not subj.endswith(")"):
-            subj += ")"
-        name, nums = parse_grades(subj)
+    for block in subject_blocks:
+        block = block.strip()
+        if not block.endswith(")"):
+            block += ")"
+        name, nums = parse_subject_block(block)
         subjects[name] = nums
 
     return fio, class_name, subjects
 
 
-def load_students(filename):
-    """Читает файл и собирает словарь по классам"""
+def load_students(filename: str):
     classes = {}
 
     with open(filename, "r", encoding="utf-8") as f:
@@ -76,29 +84,24 @@ def load_students(filename):
     return classes
 
 
-def calc_total_score(student):
+def total_score(student):
     """Считает сумму всех оценок ученика"""
-    total = 0
-    for marks in student["objects"].values():
-        total += sum(marks)
-    return total
+    return sum(sum(marks) for marks in student["objects"].values())
 
 
-def find_best_students(classes):
-    """Находит лучших учеников в каждом классе"""
+def find_best_students(classes_dict):
     best = {}
 
-    for class_name, students in classes.items():
-        max_score = max(calc_total_score(s) for s in students)
+    for class_name, students in classes_dict.items():
+        max_score = max(total_score(s) for s in students)
         best[class_name] = [
-            s for s in students if calc_total_score(s) == max_score
+            s for s in students if total_score(s) == max_score
         ]
 
     return best
 
 
 def save_best(filename, best_students):
-    """Записывает лучших учеников в файл"""
     with open(filename, "w", encoding="utf-8") as f:
         for class_name, students in best_students.items():
             f.write(f"Класс {class_name}:\n")
@@ -107,10 +110,13 @@ def save_best(filename, best_students):
             f.write("\n")
 
 
-# Основная программа
-classes = load_students(r"C:\Users\konob\project_py\bh_homework_TK\lesson 10\students_grades.txt")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+INPUT_FILE = os.path.join(BASE_DIR, "students_grades.txt")
+OUTPUT_FILE = os.path.join(BASE_DIR, "excellent_students.txt")
+
+classes = load_students(INPUT_FILE)
 best = find_best_students(classes)
-save_best("excellent_students.txt", best)
+save_best(OUTPUT_FILE, best)
 
 print("Готово! Лучшие ученики записаны в excellent_students.txt")
 
